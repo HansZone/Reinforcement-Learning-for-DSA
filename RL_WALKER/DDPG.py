@@ -4,6 +4,7 @@ import gym
 import os
 import shutil
 
+
 np.random.seed(1)
 tf.set_random_seed(1)
 
@@ -14,7 +15,7 @@ GAMMA = 0.999  # reward discount
 REPLACE_ITER_A = 1700
 REPLACE_ITER_C = 1500
 MEMORY_CAPACITY = 200000
-BATCH_SIZE = 128
+BATCH_SIZE = 32
 DISPLAY_THRESHOLD = 100  # display until the running reward > 100
 DATA_PATH = './data'
 LOAD_MODEL = True
@@ -27,14 +28,14 @@ GLOBAL_STEP = tf.Variable(0, trainable=False)
 INCREASE_GS = GLOBAL_STEP.assign(tf.add(GLOBAL_STEP, 1))
 LR_A = tf.train.exponential_decay(LR_A, GLOBAL_STEP, 10000, .97, staircase=True)
 LR_C = tf.train.exponential_decay(LR_C, GLOBAL_STEP, 10000, .97, staircase=True)
-END_POINT = (200 - 10) * (14/30)    # from game
+END_POINT = (200 - 10) * (14 / 30)  # from game
 
 env = gym.make(ENV_NAME)
 env.seed(1)
 
 STATE_DIM = env.observation_space.shape[0]  # 24
 ACTION_DIM = env.action_space.shape[0]  # 4
-ACTION_BOUND = env.action_space.high    # [1, 1, 1, 1]
+ACTION_BOUND = env.action_space.high  # [1, 1, 1, 1]
 
 # all placeholder for tf
 with tf.name_scope('S'):
@@ -43,6 +44,7 @@ with tf.name_scope('R'):
     R = tf.placeholder(tf.float32, [None, 1], name='r')
 with tf.name_scope('S_'):
     S_ = tf.placeholder(tf.float32, shape=[None, STATE_DIM], name='s_')
+
 
 ###############################  Actor  ####################################
 
@@ -77,7 +79,8 @@ class Actor(object):
             with tf.variable_scope('a'):
                 actions = tf.layers.dense(net, self.a_dim, activation=tf.nn.tanh, kernel_initializer=init_w,
                                           bias_initializer=init_b, name='a', trainable=trainable)
-                scaled_a = tf.multiply(actions, self.action_bound, name='scaled_a')  # Scale output to -action_bound to action_bound
+                scaled_a = tf.multiply(actions, self.action_bound,
+                                       name='scaled_a')  # Scale output to -action_bound to action_bound
         return scaled_a
 
     def learn(self, s):  # batch update
@@ -87,7 +90,7 @@ class Actor(object):
         self.t_replace_counter += 1
 
     def choose_action(self, s):
-        s = s[np.newaxis, :]    # single state
+        s = s[np.newaxis, :]  # single state
         return self.sess.run(self.a, feed_dict={S: s})[0]  # single action
 
     def add_grad_to_graph(self, a_grads):
@@ -121,7 +124,8 @@ class Critic(object):
             self.q = self._build_net(S, self.a, 'eval_net', trainable=True)
 
             # Input (s_, a_), output q_ for q_target
-            self.q_ = self._build_net(S_, a_, 'target_net', trainable=False)    # target_q is based on a_ from Actor's target_net
+            self.q_ = self._build_net(S_, a_, 'target_net',
+                                      trainable=False)  # target_q is based on a_ from Actor's target_net
 
             self.e_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='Critic/eval_net')
             self.t_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='Critic/target_net')
@@ -139,7 +143,7 @@ class Critic(object):
             self.train_op = tf.train.AdamOptimizer(self.lr).minimize(self.loss, global_step=GLOBAL_STEP)
 
         with tf.variable_scope('a_grad'):
-            self.a_grads = tf.gradients(self.q, a)[0]   # tensor of gradients of each sample (None, a_dim)
+            self.a_grads = tf.gradients(self.q, a)[0]  # tensor of gradients of each sample (None, a_dim) (dq/da)
 
     def _build_net(self, s, a, scope, trainable):
         with tf.variable_scope(scope):
@@ -157,11 +161,13 @@ class Critic(object):
                 net = tf.layers.dense(net, 20, activation=tf.nn.relu, kernel_initializer=init_w,
                                       bias_initializer=init_b, name='l2', trainable=trainable)
             with tf.variable_scope('q'):
-                q = tf.layers.dense(net, 1, kernel_initializer=init_w, bias_initializer=init_b, trainable=trainable)   # Q(s,a)
+                q = tf.layers.dense(net, 1, kernel_initializer=init_w, bias_initializer=init_b,
+                                    trainable=trainable)  # Q(s,a)
         return q
 
     def learn(self, s, a, r, s_, ISW):
-        _, abs_td = self.sess.run([self.train_op, self.abs_td], feed_dict={S: s, self.a: a, R: r, S_: s_, self.ISWeights: ISW})
+        _, abs_td = self.sess.run([self.train_op, self.abs_td],
+                                  feed_dict={S: s, self.a: a, R: r, S_: s_, self.ISWeights: ISW})
         if self.t_replace_counter % self.t_replace_iter == 0:
             self.sess.run([tf.assign(t, e) for t, e in zip(self.t_params, self.e_params)])
         self.t_replace_counter += 1
@@ -178,7 +184,7 @@ class SumTree(object):
 
     def __init__(self, capacity):
         self.capacity = capacity  # for all priority values
-        self.tree = np.zeros(2 * capacity - 1)+1e-5
+        self.tree = np.zeros(2 * capacity - 1) + 1e-5
         # [--------------Parent nodes-------------][-------leaves to recode priority-------]
         #             size: capacity - 1                       size: capacity
         self.data = np.zeros(capacity, dtype=object)  # for all transitions
@@ -251,7 +257,7 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
     alpha = 0.6  # [0~1] convert the importance of TD error to priority
     beta = 0.4  # importance-sampling, from initial value increasing to 1
     beta_increment_per_sampling = 1e-5  # annealing the bias
-    abs_err_upper = 1   # for stability refer to paper
+    abs_err_upper = 1  # for stability refer to paper
 
     def __init__(self, capacity):
         self.tree = SumTree(capacity)
@@ -275,7 +281,7 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
                 idx, p, data = self.tree.get_leaf(lower_bound)
                 if type(data) is int:
                     i -= 1
-                    lower_bound = np.random.uniform(segment * i, segment * (i+1))
+                    lower_bound = np.random.uniform(segment * i, segment * (i + 1))
                 else:
                     break
             prob = p / self.tree.root_priority
@@ -296,7 +302,7 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
         self.tree.update(idx, p)
 
     def _get_priority(self, error):
-        error += self.epsilon   # avoid 0
+        error += self.epsilon  # avoid 0
         clipped_error = np.clip(error, 0, self.abs_err_upper)
         return np.power(clipped_error, self.alpha)
 
@@ -333,14 +339,15 @@ if __name__ == "__main__":
         # angular speed, legs contact with ground, and 10 lidar rangefinder measurements.)
         s = env.reset()
         ep_r = 0
-        total_action = np.zeros((1, 4))
+        # total_action = np.zeros((1, 400, 600, 3))
+        total_action = []
         while True:
             if RENDER:
-                env.render()
+                frame = env.render("rgb_array")
+                total_action.append(frame)
             a = actor.choose_action(s)
-            a = np.clip(np.random.normal(a, var), -1, 1)    # add randomness to action selection for exploration
-            total_action = np.concatenate([total_action, a[np.newaxis, ...]], axis=0)
-            s_, r, done, _ = env.step(a)    # r = total 300+ points up to the far end. If the robot falls, it gets -100.
+            a = np.clip(np.random.normal(a, var), -1, 1)  # add randomness to action selection for exploration
+            s_, r, done, _ = env.step(a)  # r = total 300+ points up to the far end. If the robot falls, it gets -100.
 
             if r == -100:
                 r = -2
@@ -351,9 +358,9 @@ if __name__ == "__main__":
             max_p = np.max(M.tree.tree[-M.tree.capacity:])
             M.store(max_p, transition)
 
-            if GLOBAL_STEP.eval(sess) > MEMORY_CAPACITY/20:
-                var = max([var*0.9999, var_min])  # decay the action randomness
-                tree_idx, b_M, ISWeights = M.prio_sample(BATCH_SIZE)    # for critic update
+            if GLOBAL_STEP.eval(sess) > MEMORY_CAPACITY / 20:
+                var = max([var * 0.9999, var_min])  # decay the action randomness
+                tree_idx, b_M, ISWeights = M.prio_sample(BATCH_SIZE)  # for critic update
                 b_s = b_M[:, :STATE_DIM]
                 b_a = b_M[:, STATE_DIM: STATE_DIM + ACTION_DIM]
                 b_r = b_M[:, -STATE_DIM - 1: -STATE_DIM]
@@ -374,7 +381,7 @@ if __name__ == "__main__":
                 if "running_r" not in globals():
                     running_r = ep_r
                 else:
-                    running_r = 0.95*running_r + 0.05*ep_r
+                    running_r = 0.95 * running_r + 0.05 * ep_r
                 if running_r > DISPLAY_THRESHOLD:
                     RENDER = True
                 else:
@@ -390,7 +397,9 @@ if __name__ == "__main__":
                       '| LR_A: %.6f' % sess.run(LR_A),
                       '| LR_C: %.6f' % sess.run(LR_C),
                       )
-                np.save("./data/action/{}.npy".format(sess.run(GLOBAL_STEP)), total_action)
+                if RENDER:
+                    np.save("./action/action_{}.npy".format(sess.run(GLOBAL_STEP)), np.array(total_action))
+
                 break
 
             s = s_
