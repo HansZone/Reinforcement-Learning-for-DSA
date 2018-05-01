@@ -71,7 +71,7 @@ class ExperienceReplay(object):
 
 if __name__ == "__main__":
     portfolio_list = "111.csv"
-    model_filename = argv[2] if len(argv) > 2 else None
+    model_filename = "model.h5"
 
     instruments = {}
     f = codecs.open(portfolio_list, "r", "utf-8")
@@ -105,6 +105,7 @@ if __name__ == "__main__":
     model.summary()
     sgd = SGD(lr = 0.001, decay = 1e-6, momentum = 0.9, nesterov = True)
     model.compile(loss='mse', optimizer='rmsprop')
+    model.load_weights("model.h5")
 
     # Initialize experience replay object
     exp_replay = ExperienceReplay(max_memory = max_memory, discount = discount)
