@@ -11,10 +11,10 @@ env = gym.make(ENV_NAME)
 env.render()
 env.reset()
 fourcc = cv2.VideoWriter_fourcc('M','J','P','G')
-out = cv2.VideoWriter('output_success.avi', fourcc, 60.0, (600, 400))
+out = cv2.VideoWriter('output2.avi', fourcc, 60.0, (600, 400))
 
 
-actions = np.load(r"D:\Reinforcement-Learning-for-DSA\RL_WALKER\action\action_415593.npy")
+actions = np.load(r"D:\Reinforcement-Learning-for-DSA\RL_WALKER\action\action_770637.npy")
 print(actions.shape)
 for i in actions:
     i = cv2.cvtColor(i, cv2.COLOR_RGB2BGR)
